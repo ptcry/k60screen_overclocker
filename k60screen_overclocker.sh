@@ -129,20 +129,18 @@ rebooot() {
     fi
 }
 
+# 提示
 tips() {
-    online=$(curl -fsSL "https://raw.githubusercontent.com/ptcry/k60screen_overclocker/refs/heads/main/tips" 2>/dev/null)
-    
     clear
+
+    print_warning "正在联网获取提示...."
+    local online
+    online=$(curl -fsSL "https://raw.githubusercontent.com/ptcry/k60screen_overclocker/refs/heads/main/tips" 2>/dev/null)
+
     if [[ -n $online ]]; then
-        print_warning "正在联网获取提示...."
-        if [[ $? -eq 0 && -n $online ]]; then
-            print_info $online
-        else
-            print_error "获取网络公告失败...."
-            return 1
-        fi
+        print_info "$online"
     else
-        print_info $(cat tips)
+        print_error "获取失败"
     fi
 }
 
