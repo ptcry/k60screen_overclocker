@@ -1,11 +1,11 @@
-#!/system/bin/sh
+#!/bin/bash
 
 # 定义颜色
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 # 定义工作区路径
 WORKSPACE="workspace"
@@ -14,78 +14,41 @@ TOOLS_DIR="$WORKSPACE/tools"
 EXTRACTED_DTBO_DIR="$WORKSPACE/extracted_dtbo"
 OUTPUT_DTBO_DIR="$WORKSPACE/output_dtbo"
 BACKUP_DIR="$WORKSPACE/backup"
-LOG_DIR="$WORKSPACE/logs" # 日志目录更改到 workspace/logs
-
-# 创建日志目录
-mkdir -p "$LOG_DIR"
-
+LOG_DIR="$WORKSPACE/logs"
+    
 # 定义日志文件路径
 LOG_FILE="$LOG_DIR/$(date +'%Y%m%d_%H%M%S').log"
-touch "$LOG_FILE" # 确保日志文件存在
+touch "$LOG_FILE"
 
 # --- 日志和输出函数定义 ---
 
-# Function: Writes raw string to log file, stripping color codes
 log_to_file() {
     local message="$1"
     echo "$(date +'%Y-%m-%d %H:%M:%S') - $(echo -e "$message" | sed 's/\x1b\[[0-9;]*m//g')" >> "$LOG_FILE"
 }
 
-# Function: Prints a message to console with color (no truncation here, truncation handled by caller)
-print_console_message() {
-    echo -e "$1"
-}
-
-# Wrapper functions for colors and logging
-# These functions now accept the FULL message string as their argument.
-# They log the full string and print a concise version to the console.
 print_error() {
     local full_msg_with_color="${RED}错误: $1${NC}"
     log_to_file "$full_msg_with_color"
-    print_console_message "$full_msg_with_color" # 错误信息完整显示
+    echo -e "$full_msg_with_color"
 }
 
 print_success() {
     local full_msg_with_color="${GREEN}成功: $1${NC}"
     log_to_file "$full_msg_with_color"
-    # 根据具体成功信息，在屏幕上显示简洁版本
-    case "$1" in
-        *"Root权限已确认"*) print_console_message "${GREEN}成功: Root权限已确认.${NC}" ;;
-        *"工作区目录已创建/检查完毕"*) print_console_message "${GREEN}成功: 工作区就绪.${NC}" ;;
-        *"dtc 和 mkdtimg 工具已存在"*) print_console_message "${GREEN}成功: 工具已存在.${NC}" ;;
-        *"已赋予工具执行权限"*) print_console_message "${GREEN}成功: 工具权限已设置.${NC}" ;;
-        *"DTBO已备份到"*) print_console_message "${GREEN}成功: DTBO已备份.${NC}" ;;
-        *"重复备份已删除"*) print_console_message "${GREEN}成功: 重复备份已删除.${NC}" ;;
-        *"备份SHA256不同，保留本次备份"*) print_console_message "${GREEN}成功: 备份SHA256不同，已保留.${NC}" ;;
-        *"DTBO刷入成功"*) print_console_message "${GREEN}成功: 刷入成功！${NC}" ;;
-        *"DTBO已解包到"*) print_console_message "${GREEN}成功: DTBO已解包.${NC}" ;;
-        *"DTB文件已反编译为DTS并删除原始DTB文件"*) print_console_message "${GREEN}成功: DTB已反编译.${NC}" ;;
-        *"DTS文件已重新编译为DTB并删除原始DTS文件"*) print_console_message "${GREEN}成功: DTS已重新编译.${NC}" ;;
-        *"新的DTBO镜像已生成"*) print_console_message "${GREEN}成功: 新DTBO已生成.${NC}" ;;
-        *"新的DTBO文件已生成并保存到"*) print_console_message "${GREEN}成功: 新DTBO已生成并保存。${NC}" ;;
-        *"旧日志已清理"*) print_console_message "${GREEN}成功: 旧日志已清理.${NC}" ;;
-        *"已修改"*": framerate。"*) print_console_message "${GREEN}成功: 修改 $(echo "$1" | awk '{print $3}'): 刷新率。${NC}" ;; # 提取文件名
-        *"已修改"*": clockrate。"*) print_console_message "${GREEN}成功: 修改 $(echo "$1" | awk '{print $3}'): 时钟频率。${NC}" ;; # 提取文件名
-        *"DTS文件修改完成"*) print_console_message "${GREEN}成功: DTS修改完成。${NC}" ;;
-        *) print_console_message "$full_msg_with_color" ;; # 默认显示完整信息
-    esac
+    echo -e "$full_msg_with_color" 
 }
 
 print_info() {
     local full_msg_with_color="${BLUE}信息: $1${NC}"
     log_to_file "$full_msg_with_color"
-    # 信息过长时截断显示在屏幕，日志保持完整
-    if [ ${#1} -gt 60 ]; then
-        print_console_message "${BLUE}信息: $(echo "$1" | cut -c1-57)...${NC}"
-    else
-        print_console_message "$full_msg_with_color"
-    fi
+    echo -e "$full_msg_with_color"
 }
 
 print_warning() {
     local full_msg_with_color="${YELLOW}警告: $1${NC}"
     log_to_file "$full_msg_with_color"
-    print_console_message "$full_msg_with_color" # 警告信息完整显示
+    echo -e "$full_msg_with_color"
 }
 
 # 清理旧日志文件，只保留最新的5份
@@ -93,13 +56,11 @@ cleanup_old_logs() {
     local num_to_keep=5
     local old_logs=$(ls -t "$LOG_DIR"/*.log 2>/dev/null | tail -n +$((num_to_keep + 1)))
     if [ -n "$old_logs" ]; then
-        print_info "正在清理旧日志文件，保留最新${num_to_keep}份..."
         echo "$old_logs" | xargs rm -f
-        print_success "旧日志已清理。"
     fi
 }
 
-clear # 脚本开始时清屏
+clear
 
 print_info "======================================="
 print_info "            K60 屏幕超频工具  "
@@ -116,23 +77,8 @@ check_root() {
         print_error "请以Root权限运行此脚本！"
         exit 1
     fi
-    print_success "Root权限已确认。"
 }
 
-# 获取当前活动的AB分区
-get_active_slot() {
-    local slot=$(getprop ro.boot.slot_suffix | sed 's/_//g')
-    if [ -z "$slot" ]; then
-        print_warning "未能获取到AB分区信息，尝试从 /proc/cmdline 获取..."
-        slot=$(cat /proc/cmdline | grep -o 'androidboot.slot_suffix=[^ ]*' | cut -d'=' -f2 | sed 's/_//g')
-    fi
-
-    if [ -z "$slot" ]; then
-        print_error "无法确定当前AB分区。请手动检查并确保您的设备支持AB分区。"
-        exit 1
-    fi
-    echo "$slot"
-}
 
 # 获取手机代号和屏幕型号
 get_phone_info() {
@@ -156,40 +102,34 @@ get_phone_info() {
 
 # 创建工作区目录
 setup_workspace() {
-    print_info "正在设置工作区目录..."
     mkdir -p "$IMG_DIR" "$TOOLS_DIR" "$EXTRACTED_DTBO_DIR" "$OUTPUT_DTBO_DIR" "$BACKUP_DIR" "$LOG_DIR"
-    print_success "工作区目录已创建/检查完毕。"
 }
 
-# 检查并下载工具 (占位符)
+# 检查并下载工具
 check_and_download_tools() {
     print_info "正在检查 dtc 和 mkdtimg 工具..."
     if [ ! -f "$TOOLS_DIR/dtc" ] || [ ! -f "$TOOLS_DIR/mkdtimg" ]; then
         print_warning "dtc 或 mkdtimg 工具缺失！"
         print_warning "请手动将 dtc 和 mkdtimg 文件放到 ${TOOLS_DIR} 目录下。"
-        # 实际下载逻辑需要在这里实现
     else
         print_success "dtc 和 mkdtimg 工具已存在。"
+        chmod 777 "$TOOLS_DIR/dtc" "$TOOLS_DIR/mkdtimg"
+        print_success "已赋予工具执行权限。"
     fi
-
-    chmod 777 "$TOOLS_DIR/dtc" "$TOOLS_DIR/mkdtimg"
-    print_success "已赋予工具执行权限。"
 }
 
 # 备份DTBO
 backup_dtbo() {
-    local current_slot=$1
+    local current_slot=$ACTIVE_SLOT
     local dtbo_partition="/dev/block/by-name/dtbo_$current_slot"
     local timestamp=$(date +'%Y%m%d_%H%M%S')
     local backup_file="$BACKUP_DIR/dtbo_backup_${timestamp}.img"
 
-    print_info "正在备份当前DTBO分区 (${dtbo_partition})..."
     dd if="$dtbo_partition" of="$backup_file" bs=4M 2>> "$LOG_FILE" # 将dd的错误输出重定向到日志
     if [ $? -ne 0 ]; then
         print_error "DTBO备份失败！请检查分区路径或权限。"
         return 1
     fi
-    print_success "DTBO已备份到: $backup_file"
 
     # 对比上一份备份的SHA256
     local previous_backup_file=$(ls -t "$BACKUP_DIR"/dtbo_backup_*.img 2>/dev/null | grep -v "$backup_file" | head -n 1)
@@ -199,37 +139,70 @@ backup_dtbo() {
         previous_sha=$(sha256sum "$previous_backup_file" | awk '{print $1}')
 
         if [ "$current_sha" = "$previous_sha" ]; then
-            print_warning "当前备份SHA256与上一份备份内容相同，删除本次重复备份: $backup_file"
+            print_warning "已删除重复的备份！"
             rm "$backup_file"
         else
-            print_success "备份SHA256不同，保留本次备份。"
+            print_success "DTBO已备份到: $backup_file"
         fi
     fi
     return 0
 }
 
+# 还原DTBO
+recovery_dtbo() {
+    clear
+    local backup_file="$BACKUP_DIR/dtbo_backup_${timestamp}.img"
+    print_info "正在恢复DTBO"
+    local previous_backup_file=$(ls -t "$BACKUP_DIR"/dtbo_backup_*.img | grep -v "$backup_file" | head -n 1)
+    echo $previous_backup_file
+    if [ -f "$previous_backup_file" ]; then
+        flash_dtbo "$previous_backup_file"
+    else
+        print_error "恢复文件不存在！"
+    fi
+}
+
 # 刷入DTBO
 flash_dtbo() {
     local dtbo_img=$1
-    local current_slot=$2
+    local current_slot=$ACTIVE_SLOT
     local dtbo_partition="/dev/block/by-name/dtbo_$current_slot"
 
     if [ ! -f "$dtbo_img" ]; then
         print_error "要刷入的DTBO文件不存在: $dtbo_img"
         return 1
     fi
-
-    print_info "正在刷入DTBO文件: ${GREEN}$dtbo_img${NC} 到分区: ${GREEN}$dtbo_partition${NC}"
+    
+    read -p "确定要刷入此DTBO文件吗？(y/n): " confirm
+    if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+        print_info "正在刷入DTBO文件: ${GREEN}$dtbo_img${NC} 到分区: ${GREEN}$dtbo_partition${NC}"
+        
     dd if="$dtbo_img" of="$dtbo_partition" bs=4M 2>> "$LOG_FILE" # 将dd的错误输出重定向到日志
-    if [ $? -ne 0 ]; then
-        print_error "DTBO刷入失败！"
-        print_warning "请尝试关闭防格机模块，或在TWRP中进行备份、恢复和刷入操作。"
-        return 1
+    
+        if [ $? -ne 0 ]; then
+            print_error "DTBO刷入失败！"
+            print_warning "请尝试关闭防格机模块，或在TWRP中进行备份、恢复和刷入操作。"
+            return 1
+        fi
+        
+        print_success "DTBO刷入成功！"
+        rebooot
+        return 0
+    
+    else
+        print_info "已取消刷入操作。"
     fi
-    print_success "DTBO刷入成功！"
-    return 0
+    
 }
 
+# 重启
+rebooot() {
+    read -p "刷入成功，是否立即重启设备？(y/n): " reboot_confirm
+    if [ "$reboot_confirm" = "y" ] || [ "$reboot_confirm" = "Y" ]; then
+        print_info "三秒后重启设备..." && sleep 3
+        reboot
+    fi
+}
 # DTBO解包
 extract_dtbo() {
     local dtbo_file=$1
@@ -320,6 +293,7 @@ main_menu() {
         echo -e "${GREEN}2. 刷入自定义DTBO文件${NC}"
         echo -e "${GREEN}3. 制作自定义DTBO (超频)${NC}"
         echo -e "${GREEN}4. 强开全局DC调光${NC}"
+        echo -e "${GREEN}5. 还原上一次备份${NC}"
         echo -e "${RED}0. 退出${NC}"
         echo -e "${YELLOW}---------------------------------------${NC}"
         read -p "请选择一个选项: " choice
@@ -329,11 +303,12 @@ main_menu() {
             2) flash_custom_dtbo ;;
             3) create_custom_dtbo ;;
             4) print_info "看看就行了，懒得整鸽掉" ;;
+            5) recovery_dtbo ;;
             0) print_info "退出脚本。再见！" && exit 0 ;;
             *) print_error "无效的选项，请重新输入。" ;;
         esac
         echo ""
-        read -p "按回车键继续..." # 暂停，让用户看清输出
+        read -p "按回车键继续..." 
 #    done
 }
 
@@ -359,109 +334,68 @@ flash_premade_dtbo() {
     fi
 
     local selected_file="${dtbo_files[$((file_choice-1))]}"
-    print_info "您选择了: $(basename "$selected_file")"
 
-    read -p "确定要刷入此DTBO文件吗？(y/n): " confirm
-    if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
-        flash_dtbo "$selected_file" "$ACTIVE_SLOT"
-        if [ $? -eq 0 ]; then
-            read -p "刷入成功，是否立即重启设备？(y/n): " reboot_confirm
-            if [ "$reboot_confirm" = "y" ] || [ "$reboot_confirm" = "Y" ]; then
-                print_info "三秒后重启设备..." && sleep 3
-                reboot
-            fi
-        fi
-    else
-        print_info "已取消刷入操作。"
-    fi
+    flash_dtbo "$selected_file"
 }
 
 # 选项二：刷入自定义DTBO文件
 flash_custom_dtbo() {
-    clear # 清屏
-    print_info "正在列出已生成的自定义DTBO文件..."
-    local dtbo_files=($(find "$OUTPUT_DTBO_DIR" -maxdepth 1 -name "dtbo*.img"))
-    if [ ${#dtbo_files[@]} -eq 0 ]; then
-        print_warning "在 ${OUTPUT_DTBO_DIR} 目录下未找到任何以 'dtbo' 开头 '.img' 结尾的自定义DTBO文件。"
-        print_info "请先使用 '制作自定义DTBO' 选项生成文件。"
-        return
-    fi
+    clear
+    local dtbo_files=()
+    while IFS= read -r -d '' f; do
+        dtbo_files+=("$f")
+    done < <(find "$OUTPUT_DTBO_DIR" -maxdepth 1 -type f -name "dtbo*.img" -print0)
 
     echo -e "${BLUE}可用的自定义DTBO文件:${NC}"
+
     local count=1
-    for file in "${dtbo_files[@]}"; do
-        echo -e "${GREEN}$((count++)). $(basename "$file")${NC}"
-    done
-    echo -e "${GREEN}$((count++)). 手动输入DTBO文件路径${NC}"
-
-    read -p "请输入要刷入的文件的序号或选择手动输入: " file_choice
-    local selected_file=""
-
-    if [[ "$file_choice" =~ ^[0-9]+$ ]] && [ "$file_choice" -ge 1 ] && [ "$file_choice" -le ${#dtbo_files[@]} ]; then
-        selected_file="${dtbo_files[$((file_choice-1))]}"
-    elif [[ "$file_choice" -eq ${#dtbo_files[@]}+1 ]]; then
-        read -p "请输入要刷入的DTBO文件的完整路径: " manual_path
-        selected_file="$manual_path"
+    if [ ${#dtbo_files[@]} -eq 0 ]; then
+        print_warning "在 ${OUTPUT_DTBO_DIR} 目录下未找到任何以 'dtbo' 开头 '.img' 结尾的自定义DTBO文件。"
     else
-        print_error "无效的序号。"
-        return
+        for file in "${dtbo_files[@]}"; do
+            echo -e "${GREEN}$((count++)). $(basename "$file")${NC}"
+        done
+    fi
+
+    clear
+    echo "-----------------------------"
+    echo -e "${GREEN}$((count++)). 手动输入 DTBO 文件路径${NC}"
+
+    read -p "请输入要刷入的文件的序号: " file_choice
+
+    local selected_file=""
+    if [[ "$file_choice" =~ ^[0-9]+$ ]]; then
+        if [ "$file_choice" -ge 1 ] && [ "$file_choice" -le ${#dtbo_files[@]} ]; then
+            selected_file="${dtbo_files[$((file_choice-1))]}"
+        elif [ "$file_choice" -eq $((${#dtbo_files[@]} + 1)) ]; then
+            read -p "请输入要刷入的DTBO文件的完整路径: " selected_file
+        fi
     fi
 
     if [ -z "$selected_file" ]; then
-        print_error "未选择任何文件。"
+        print_error "无效的序号或未选择任何文件。"
         return
     fi
 
     print_info "您选择了: $(basename "$selected_file")"
 
     read -p "确定要刷入此DTBO文件吗？(y/n): " confirm
-    if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
-        flash_dtbo "$selected_file" "$ACTIVE_SLOT"
-        if [ $? -eq 0 ]; then
-            read -p "刷入成功，是否立即重启设备？(y/n): " reboot_confirm
-            if [ "$reboot_confirm" = "y" ] || [ "$reboot_confirm" = "Y" ]; then
-                print_info "三秒后重启设备..." && sleep 3
-                reboot
-            fi
-        fi
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+        flash_dtbo "$selected_file"
     else
         print_info "已取消刷入操作。"
     fi
 }
+
 
 
 # 选项三：制作自定义DTBO
 create_custom_dtbo() {
     clear # 清屏
-    echo -e "${YELLOW}---------------------------------------${NC}"
-    echo -e "${YELLOW}           制作自定义DTBO              ${NC}"
-    echo -e "${YELLOW}---------------------------------------${NC}"
-    echo -e "${GREEN}1. 使用刚刚备份的DTBO文件${NC}"
-    echo -e "${GREEN}2. 提取本机DTBO${NC}"
-    echo -e "${RED}0. 返回主菜单${NC}"
-    echo -e "${YELLOW}---------------------------------------${NC}"
-    read -p "请选择DTBO来源: " dtbo_source_choice
-
     local source_dtbo_file=""
-    if [ "$dtbo_source_choice" = "1" ]; then
-        local latest_backup=$(ls -t "$BACKUP_DIR"/dtbo_backup_*.img 2>/dev/null | head -n 1)
-        if [ -z "$latest_backup" ]; then
-            print_error "未找到任何DTBO备份文件。请先执行备份操作。"
-            return
-        fi
-        source_dtbo_file="$latest_backup"
-        print_info "将使用备份文件: $(basename "$source_dtbo_file")"
-    elif [ "$dtbo_source_choice" = "2" ]; then
         source_dtbo_file="/dev/block/by-name/dtbo_$ACTIVE_SLOT"
         print_info "将提取本机DTBO分区: $source_dtbo_file"
-    elif [ "$dtbo_source_choice" = "0" ]; then
-        print_info "返回主菜单。"
-        return
-    else
-        print_error "无效的选项。"
-        return
-    fi
-
+    
     if [ ! -b "$source_dtbo_file" ] && [ ! -f "$source_dtbo_file" ]; then
         print_error "DTBO源文件/分区不存在或不可读: $source_dtbo_file"
         return
@@ -700,17 +634,7 @@ create_custom_dtbo() {
     if [ $? -ne 0 ]; then return; fi
 
     print_success "新的DTBO文件已生成并保存到: $output_path"
-
-    read -p "是否立即刷入这个新的DTBO文件并重启设备？(y/n): " flash_and_reboot_confirm
-    if [ "$flash_and_reboot_confirm" = "y" ] || [ "$flash_and_reboot_confirm" = "Y" ]; then
-        flash_dtbo "$output_path" "$ACTIVE_SLOT"
-        if [ $? -eq 0 ]; then
-            print_info "三秒后重启设备..." && sleep 3
-            reboot
-        fi
-    else
-        print_info "已取消刷入和重启操作。新的DTBO文件已保存，您可以稍后手动刷入。"
-    fi
+    flash_dtbo "$output_path"
 }
 
 # --- 脚本执行流程 ---
@@ -720,7 +644,7 @@ setup_workspace
 check_and_download_tools
 get_phone_info
 
-ACTIVE_SLOT=$(get_active_slot)
+ACTIVE_SLOT=$(getprop ro.boot.slot_suffix | sed 's/_//g')
 print_info "当前活动的AB分区: ${GREEN}$ACTIVE_SLOT${NC}"
 
 backup_dtbo "$ACTIVE_SLOT"
