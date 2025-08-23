@@ -60,14 +60,6 @@ cleanup_old_logs() {
     fi
 }
 
-clear
-
-print_info "======================================="
-print_info "            K60 屏幕超频工具  "
-print_info "======================================="
-print_info ""
-print_info "所有输出将保存到日志文件: $LOG_FILE"
-print_info ""
 
 # --- 脚本核心功能函数 ---
 
@@ -105,23 +97,57 @@ setup_workspace() {
     mkdir -p "$IMG_DIR" "$TOOLS_DIR" "$EXTRACTED_DTBO_DIR" "$OUTPUT_DTBO_DIR" "$BACKUP_DIR" "$LOG_DIR"
 }
 
-# 检查并下载工具
-check_and_download_tools() {
-    print_info "正在检查 dtc 和 mkdtimg 工具..."
+# AB判断
+detect_ab() {
+    local suffix=$(getprop ro.boot.slot_suffix)
+    
+    if [[ ! "$suffix" ]]; then
+        print_warning "无AB分区！"
+    else
+        print_info "当前活动的AB分区: ${GREEN}$suffix${NC}"
+        dtbo_partition="/dev/block/by-name/dtbo$suffix"
+    fi
+}
+
+# 检查工具
+check_tools() {
     if [ ! -f "$TOOLS_DIR/dtc" ] || [ ! -f "$TOOLS_DIR/mkdtimg" ]; then
         print_warning "dtc 或 mkdtimg 工具缺失！"
         print_warning "请手动将 dtc 和 mkdtimg 文件放到 ${TOOLS_DIR} 目录下。"
     else
-        print_success "dtc 和 mkdtimg 工具已存在。"
+        print_info "dtc 和 mkdtimg 工具已存在。"
         chmod 777 "$TOOLS_DIR/dtc" "$TOOLS_DIR/mkdtimg"
-        print_success "已赋予工具执行权限。"
+    fi
+}
+
+# 重启
+rebooot() {
+    read -p "刷入成功，是否立即重启设备？(y/n): " reboot_confirm
+    if [ "$reboot_confirm" = "y" ] || [ "$reboot_confirm" = "Y" ]; then
+        print_info "三秒后重启设备..." && sleep 3
+        reboot
+    fi
+}
+
+tips() {
+    online=$(curl -fsSL "https://raw.githubusercontent.com/ptcry/k60screen_overclocker/refs/heads/main/tips" 2>/dev/null)
+    
+    clear
+    if [[ -n $online ]]; then
+        print_warning "正在联网获取提示...."
+        if [[ $? -eq 0 && -n $online ]]; then
+            print_info $online
+        else
+            print_error "获取网络公告失败...."
+            return 1
+        fi
+    else
+        print_info $(cat tips)
     fi
 }
 
 # 备份DTBO
 backup_dtbo() {
-    local current_slot=$ACTIVE_SLOT
-    local dtbo_partition="/dev/block/by-name/dtbo_$current_slot"
     local timestamp=$(date +'%Y%m%d_%H%M%S')
     local backup_file="$BACKUP_DIR/dtbo_backup_${timestamp}.img"
 
@@ -165,8 +191,6 @@ recovery_dtbo() {
 # 刷入DTBO
 flash_dtbo() {
     local dtbo_img=$1
-    local current_slot=$ACTIVE_SLOT
-    local dtbo_partition="/dev/block/by-name/dtbo_$current_slot"
 
     if [ ! -f "$dtbo_img" ]; then
         print_error "要刷入的DTBO文件不存在: $dtbo_img"
@@ -195,14 +219,6 @@ flash_dtbo() {
     
 }
 
-# 重启
-rebooot() {
-    read -p "刷入成功，是否立即重启设备？(y/n): " reboot_confirm
-    if [ "$reboot_confirm" = "y" ] || [ "$reboot_confirm" = "Y" ]; then
-        print_info "三秒后重启设备..." && sleep 3
-        reboot
-    fi
-}
 # DTBO解包
 extract_dtbo() {
     local dtbo_file=$1
@@ -294,6 +310,7 @@ main_menu() {
         echo -e "${GREEN}3. 制作自定义DTBO (超频)${NC}"
         echo -e "${GREEN}4. 强开全局DC调光${NC}"
         echo -e "${GREEN}5. 还原上一次备份${NC}"
+        echo -e "${GREEN}6. 获取提示${NC}"
         echo -e "${RED}0. 退出${NC}"
         echo -e "${YELLOW}---------------------------------------${NC}"
         read -p "请选择一个选项: " choice
@@ -304,6 +321,7 @@ main_menu() {
             3) create_custom_dtbo ;;
             4) print_info "看看就行了，懒得整鸽掉" ;;
             5) recovery_dtbo ;;
+            6) tips ;;
             0) print_info "退出脚本。再见！" && exit 0 ;;
             *) print_error "无效的选项，请重新输入。" ;;
         esac
@@ -393,7 +411,7 @@ flash_custom_dtbo() {
 create_custom_dtbo() {
     clear # 清屏
     local source_dtbo_file=""
-        source_dtbo_file="/dev/block/by-name/dtbo_$ACTIVE_SLOT"
+        source_dtbo_file="$dtbo_partition"
         print_info "将提取本机DTBO分区: $source_dtbo_file"
     
     if [ ! -b "$source_dtbo_file" ] && [ ! -f "$source_dtbo_file" ]; then
@@ -639,15 +657,23 @@ create_custom_dtbo() {
 
 # --- 脚本执行流程 ---
 
+clear
+
+print_info "======================================="
+print_info "            K60 屏幕超频工具  "
+print_info "======================================="
+print_info ""
+print_info "所有输出将保存到日志文件: $LOG_FILE"
+print_info ""
+
 check_root
 setup_workspace
-check_and_download_tools
+check_tools
 get_phone_info
+detect_ab
 
-ACTIVE_SLOT=$(getprop ro.boot.slot_suffix | sed 's/_//g')
-print_info "当前活动的AB分区: ${GREEN}$ACTIVE_SLOT${NC}"
-
-backup_dtbo "$ACTIVE_SLOT"
+backup_dtbo
 cleanup_old_logs
 
 main_menu
+
