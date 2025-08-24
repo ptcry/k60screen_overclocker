@@ -96,12 +96,11 @@ setup_workspace() {
 # AB判断
 detect_ab() {
     local suffix=$(getprop ro.boot.slot_suffix)
-    
+    dtbo_partition="/dev/block/by-name/dtbo$suffix"
     if [[ ! "$suffix" ]]; then
         print_warning "无AB分区！"
     else
         print_info "当前活动的AB分区: ${GREEN}$suffix${NC}"
-        dtbo_partition="/dev/block/by-name/dtbo$suffix"
     fi
 }
 
