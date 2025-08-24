@@ -4,7 +4,7 @@
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
-BLUE='\033[0;34m'
+PURE='\033[0;35m'
 NC='\033[0m'
 
 # 定义工作区路径
@@ -36,7 +36,7 @@ print_success() {
 }
 
 print_info() {
-    local full_msg_with_color="${BLUE}信息: $1${NC}"
+    local full_msg_with_color="${PURE}信息: $1${NC}"
     log_to_file "$full_msg_with_color"
     echo -e "$full_msg_with_color"
 }
@@ -110,7 +110,7 @@ check_tools() {
     for t in dtc mkdtimg; do
         [ -f "$TOOLS_DIR/$t" ] && continue
         print_warning "$t 缺失！"
-        curl -sSfL "https://raw.githubusercontent.com/ptcry/k60screen_overclocker/refs/heads/main/workspace/tools/$t" -o "$TOOLS_DIR/$t" && \
+        curl -sSfL ""$url_online"/workspace/tools/$t" -o "$TOOLS_DIR/$t" && \
             chmod +x "$TOOLS_DIR/$t" && print_success "$t 下载成功" || \
             { print_error "$t 下载失败"; return 1; }
     done
@@ -136,7 +136,7 @@ tips() {
 
     print_warning "正在联网获取提示...."
     local online
-    online=$(curl -fsSL "https://raw.githubusercontent.com/ptcry/k60screen_overclocker/refs/heads/main/tips" 2>/dev/null)
+    online=$(curl -fsSL ""$url_online"/tips" 2>/dev/null)
 
     if [[ -n $online ]]; then
         print_info "$online"
@@ -197,7 +197,7 @@ flash_dtbo() {
     fi
     
     read -p "确定要刷入此DTBO文件吗？(y/n): " confirm
-    if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
         print_info "正在刷入DTBO文件: ${GREEN}$dtbo_img${NC} 到分区: ${GREEN}$dtbo_partition${NC}"
         
     dd if="$dtbo_img" of="$dtbo_partition" bs=4M 2>> "$LOG_FILE" # 将dd的错误输出重定向到日志
@@ -331,29 +331,38 @@ main_menu() {
 
 # 选项一：刷入预制DTBO文件
 flash_premade_dtbo() {
-    clear # 清屏
+    clear
     local dtbo_files=($(find "$IMG_DIR" -maxdepth 3 -name "dtbo*.img"))
+
     if [ ${#dtbo_files[@]} -eq 0 ]; then
-        print_warning "在 ${IMG_DIR} 目录下未找到任何以 'dtbo' 开头 '.img' 结尾的预制DTBO文件。"
-        return
+        print_warning "${IMG_DIR} 下暂无预制 DTBO"
+        read -p "是否联网下载预制包？(y/N): " dl
+        [[ "$dl" =~ ^[Yy]$ ]] || return
+
+        local zip=/data/local/tmp/img.zip
+        curl -sSfL "$url_online"/img.zip \
+             -o "$zip" && {
+            unzip -q "$zip" -d "$WORKSPACE" 2>/dev/null || unzip -q "$zip" -d "$WORKSPACE"
+            rm -f "$zip"
+            dtbo_files=($(find "$IMG_DIR" -maxdepth 3 -name "dtbo*.img"))
+        } || { print_error "下载/解压失败"; return; }
     fi
 
-    echo -e "${BLUE}可用的预制DTBO文件:${NC}"
+    [ ${#dtbo_files[@]} -eq 0 ] && { print_error "仍无可用 DTBO"; return; }
+
+    echo -e "${PURE}可用的预制 DTBO:${NC}"
     local count=1
     for file in "${dtbo_files[@]}"; do
         echo -e "${GREEN}$((count++)). $(basename "$file")${NC}"
     done
 
-    read -p "请输入要刷入的文件的序号: " file_choice
-    if ! [[ "$file_choice" =~ ^[0-9]+$ ]] || [ "$file_choice" -le 0 ] || [ "$file_choice" -gt ${#dtbo_files[@]} ]; then
-        print_error "无效的序号。"
-        return
-    fi
+    read -p "请输入序号: " file_choice
+    [[ "$file_choice" =~ ^[0-9]+$ ]] && [ "$file_choice" -gt 0 ] && \
+        [ "$file_choice" -le ${#dtbo_files[@]} ] || { print_error "无效序号"; return; }
 
-    local selected_file="${dtbo_files[$((file_choice-1))]}"
-
-    flash_dtbo "$selected_file"
+    flash_dtbo "${dtbo_files[$((file_choice-1))]}"
 }
+
 
 # 选项二：刷入自定义DTBO文件
 flash_custom_dtbo() {
@@ -368,7 +377,7 @@ flash_custom_dtbo() {
     if [ ${#dtbo_files[@]} -eq 0 ]; then
         print_warning "在 ${OUTPUT_DTBO_DIR} 目录下未找到任何以 'dtbo' 开头 '.img' 结尾的自定义DTBO文件。"
     else
-        echo -e "${BLUE}可用的自定义DTBO文件:${NC}"
+        echo -e "${PURE}可用的自定义DTBO文件:${NC}"
         for file in "${dtbo_files[@]}"; do
             echo -e "${GREEN}$((count++)). $(basename "$file")${NC}"
         done
@@ -564,7 +573,7 @@ create_custom_dtbo() {
         local param_hex=$(echo "$line" | cut -d',' -f3)
         local param_dec=$(printf "%d" "0x$param_hex")
         
-        echo -e "${BLUE}参数 ${gear_count} (行 ${line_num}, ${param_name}):${NC}"
+        echo -e "${PURE}参数 ${gear_count} (行 ${line_num}, ${param_name}):${NC}"
         if [ "$param_name" = "framerate" ]; then
             echo -e "  - ${GREEN}当前值: ${param_dec} Hz${NC} (0x$param_hex)"
         else
@@ -661,7 +670,8 @@ create_custom_dtbo() {
 # --- 脚本执行流程 ---
 check_root
 setup_workspace
-# 定义日志文件路径
+
+url_online="https://raw.githubusercontent.com/ptcry/k60screen_overclocker/refs/heads/main"
 LOG_FILE="$LOG_DIR/$(date +'%Y%m%d_%H%M%S').log"
 touch "$LOG_FILE"
 
