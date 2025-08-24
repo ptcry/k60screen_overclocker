@@ -7,21 +7,21 @@
 这是适配于`K60`的一键超频屏幕脚本。
 其他手机型号*理论*适用
 
-使用方法  
+从`MT管理器`终端快速启动指令：```curl -sSfL https://raw.githubusercontent.com/ptcry/k60screen_overclocker/refs/heads/main/k60screen_overclocker.sh \
+  -o /data/local/tmp/k60screen_overclocker.sh && \
+chmod +x /data/local/tmp/k60screen_overclocker.sh && \
+bash /data/local/tmp/k60screen_overclocker.sh || echo -e "网络错误或脚本下载失败！" ```
+
+推荐食用方法：
 1. 点击仓库右上角 Code → Download ZIP，下载并解压。
 2. 将解压后的所有文件完整复制到手机目录：
-
    `/data/local/tmp`
-
 3. 手机必须已 Root。在终端中执行：  
    
 ```bash
    cd /data/local/tmp
    chmod +x k60screen_overclocker.sh
-   ./k60screen_overclocker.sh
-   ```
-
-4. 操作完重启手机，检查刷新率是否已生效。
+   ./k60screen_overclocker.sh ```
 
 
 常见问题

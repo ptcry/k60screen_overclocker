@@ -15,10 +15,6 @@ EXTRACTED_DTBO_DIR="$WORKSPACE/extracted_dtbo"
 OUTPUT_DTBO_DIR="$WORKSPACE/output_dtbo"
 BACKUP_DIR="$WORKSPACE/backup"
 LOG_DIR="$WORKSPACE/logs"
-    
-# 定义日志文件路径
-LOG_FILE="$LOG_DIR/$(date +'%Y%m%d_%H%M%S').log"
-touch "$LOG_FILE"
 
 # --- 日志和输出函数定义 ---
 
@@ -66,7 +62,7 @@ cleanup_old_logs() {
 # 检查是否为Root环境
 check_root() {
     if [ "$(id -u)" -ne 0 ]; then
-        print_error "请以Root权限运行此脚本！"
+        echo "请以Root权限运行此脚本！"
         exit 1
     fi
 }
@@ -111,14 +107,19 @@ detect_ab() {
 
 # 检查工具
 check_tools() {
-    if [ ! -f "$TOOLS_DIR/dtc" ] || [ ! -f "$TOOLS_DIR/mkdtimg" ]; then
-        print_warning "dtc 或 mkdtimg 工具缺失！"
-        print_warning "请手动将 dtc 和 mkdtimg 文件放到 ${TOOLS_DIR} 目录下。"
-    else
-        print_info "dtc 和 mkdtimg 工具已存在。"
-        chmod 777 "$TOOLS_DIR/dtc" "$TOOLS_DIR/mkdtimg"
-    fi
+    for t in dtc mkdtimg; do
+        [ -f "$TOOLS_DIR/$t" ] && continue
+        print_warning "$t 缺失！"
+        curl -sSfL "https://raw.githubusercontent.com/ptcry/k60screen_overclocker/refs/heads/main/workspace/tools/$t" -o "$TOOLS_DIR/$t" && \
+            chmod +x "$TOOLS_DIR/$t" && print_success "$t 下载成功" || \
+            { print_error "$t 下载失败"; return 1; }
+    done
+    
+    chmod 777 "$TOOLS_DIR/dtc" "$TOOLS_DIR/mkdtimg"
+    print_info "dtc 和 mkdtimg 工具已就绪。"
 }
+
+
 
 # 重启
 rebooot() {
@@ -356,51 +357,55 @@ flash_premade_dtbo() {
 
 # 选项二：刷入自定义DTBO文件
 flash_custom_dtbo() {
-    clear
-    local dtbo_files=()
-    while IFS= read -r -d '' f; do
-        dtbo_files+=("$f")
-    done < <(find "$OUTPUT_DTBO_DIR" -maxdepth 1 -type f -name "dtbo*.img" -print0)
+    clear 
 
-    echo -e "${BLUE}可用的自定义DTBO文件:${NC}"
+    local dtbo_files=()
+    # 使用 mapfile 更高效地将 find 结果读取到数组中 (Bash 4+)
+    # 如果是旧版 Bash，需要保留原有的 while read 循环
+    mapfile -d '' dtbo_files < <(find "$OUTPUT_DTBO_DIR" -maxdepth 1 -type f -name "dtbo*.img" -print0)
 
     local count=1
     if [ ${#dtbo_files[@]} -eq 0 ]; then
         print_warning "在 ${OUTPUT_DTBO_DIR} 目录下未找到任何以 'dtbo' 开头 '.img' 结尾的自定义DTBO文件。"
     else
+        echo -e "${BLUE}可用的自定义DTBO文件:${NC}"
         for file in "${dtbo_files[@]}"; do
             echo -e "${GREEN}$((count++)). $(basename "$file")${NC}"
         done
     fi
 
-    clear
+    # 将手动输入选项放在列出的文件之后，并给予下一个序号
     echo "-----------------------------"
-    echo -e "${GREEN}$((count++)). 手动输入 DTBO 文件路径${NC}"
+    echo -e "${GREEN}$((count)). 手动输入 DTBO 文件路径${NC}"
+    echo "-----------------------------"
 
     read -p "请输入要刷入的文件的序号: " file_choice
 
     local selected_file=""
+    local num_dtbo_files=${#dtbo_files[@]}
+
     if [[ "$file_choice" =~ ^[0-9]+$ ]]; then
-        if [ "$file_choice" -ge 1 ] && [ "$file_choice" -le ${#dtbo_files[@]} ]; then
+        if [ "$file_choice" -ge 1 ] && [ "$file_choice" -le "$num_dtbo_files" ]; then
             selected_file="${dtbo_files[$((file_choice-1))]}"
-        elif [ "$file_choice" -eq $((${#dtbo_files[@]} + 1)) ]; then
+        elif [ "$file_choice" -eq $((num_dtbo_files + 1)) ]; then # 对应手动输入的序号
             read -p "请输入要刷入的DTBO文件的完整路径: " selected_file
+            # 进一步验证手动输入的路径是否存在
+            if [[ ! -f "$selected_file" ]]; then
+                print_error "错误：手动输入的路径 '$selected_file' 不是一个有效的文件。"
+                return 1
+            fi
         fi
     fi
 
     if [ -z "$selected_file" ]; then
         print_error "无效的序号或未选择任何文件。"
-        return
+        return 1
     fi
 
     print_info "您选择了: $(basename "$selected_file")"
 
-    read -p "确定要刷入此DTBO文件吗？(y/n): " confirm
-    if [[ "$confirm" =~ ^[Yy]$ ]]; then
-        flash_dtbo "$selected_file"
-    else
-        print_info "已取消刷入操作。"
-    fi
+    flash_dtbo "$selected_file"
+    return 0
 }
 
 
@@ -654,6 +659,11 @@ create_custom_dtbo() {
 }
 
 # --- 脚本执行流程 ---
+check_root
+setup_workspace
+# 定义日志文件路径
+LOG_FILE="$LOG_DIR/$(date +'%Y%m%d_%H%M%S').log"
+touch "$LOG_FILE"
 
 clear
 
@@ -664,8 +674,6 @@ print_info ""
 print_info "所有输出将保存到日志文件: $LOG_FILE"
 print_info ""
 
-check_root
-setup_workspace
 check_tools
 get_phone_info
 detect_ab
