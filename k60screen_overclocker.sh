@@ -93,6 +93,54 @@ setup_workspace() {
     mkdir -p "$IMG_DIR" "$TOOLS_DIR" "$EXTRACTED_DTBO_DIR" "$OUTPUT_DTBO_DIR" "$BACKUP_DIR" "$LOG_DIR"
 }
 
+# 更新检查
+update_check() {
+    local tmpfile version_line notice_line
+
+    tmpfile=$(mktemp 2>/dev/null) || {
+        printf 'update_check: 无法创建临时文件，检查失败\n' >&2
+        return 1
+    }
+    trap 'rm -f "$tmpfile"' EXIT
+
+    if ! curl -fsSL "${url_online}/version" -o "$tmpfile" 2>/dev/null; then
+        printf 'update_check: 获取远端版本信息失败\n' >&2
+        return 1
+    fi
+
+    { IFS= read -r version_line; IFS= read -r notice_line; } < "$tmpfile"
+
+    [[ -z "$version_line" ]] && {
+        printf 'update_check: 远端 version 文件格式异常\n' >&2
+        return 1
+    }
+
+    if [[ "$local_version" != "$version_line" ]]; then
+        cat <<EOF
+┌─ 版本更新提醒 ────────────────
+│ 当前版本 : $local_version
+│ 最新版本 : $version_line
+│ 公告     : ${notice_line:-无}
+└────────────────────────
+EOF
+
+        # 询问是否更新
+        read -rp "是否立即更新? [y/N]: " confirm
+        case $confirm in
+            [yY]|[yY][eE][sS])
+                echo "开始更新..."
+                curl -sSfL https://raw.githubusercontent.com/ptcry/k60screen_overclocker/main/k60screen_overclocker.sh \
+  -o /data/local/tmp/k60screen_overclocker.sh && \
+chmod +x /data/local/tmp/k60screen_overclocker.sh && \
+bash /data/local/tmp/k60screen_overclocker.sh || echo "网络错误或下载失败"
+                ;;
+            *)
+                echo "已取消更新"
+                ;;
+        esac
+    fi
+}
+
 # AB判断
 detect_ab() {
     local suffix=$(getprop ro.boot.slot_suffix)
@@ -669,57 +717,12 @@ create_custom_dtbo() {
 
 # --- 脚本执行流程 ---
 check_root
+update_check
 setup_workspace
 
 url_online="https://raw.githubusercontent.com/ptcry/k60screen_overclocker/refs/heads/main"
-# 更新检查
-update_check() {
-     local_version="1.8"
-    local tmpfile version_line notice_line
+local_version="1.9"
 
-    tmpfile=$(mktemp 2>/dev/null) || {
-        printf 'update_check: 无法创建临时文件，检查失败\n' >&2
-        return 1
-    }
-    trap 'rm -f "$tmpfile"' EXIT
-
-    if ! curl -fsSL "${url_online}/version" -o "$tmpfile" 2>/dev/null; then
-        printf 'update_check: 获取远端版本信息失败\n' >&2
-        return 1
-    fi
-
-    { IFS= read -r version_line; IFS= read -r notice_line; } < "$tmpfile"
-
-    [[ -z "$version_line" ]] && {
-        printf 'update_check: 远端 version 文件格式异常\n' >&2
-        return 1
-    }
-
-    if [[ "$local_version" != "$version_line" ]]; then
-        cat <<EOF
-┌─ 版本更新提醒 ────────────────
-│ 当前版本 : $local_version
-│ 最新版本 : $version_line
-│ 公告     : ${notice_line:-无}
-└────────────────────────
-EOF
-
-        # 询问是否更新
-        read -rp "是否立即更新? [y/N]: " confirm
-        case $confirm in
-            [yY]|[yY][eE][sS])
-                echo "开始更新..."
-                curl -sSfL https://raw.githubusercontent.com/ptcry/k60screen_overclocker/main/k60screen_overclocker.sh \
-  -o /data/local/tmp/k60screen_overclocker.sh && \
-chmod +x /data/local/tmp/k60screen_overclocker.sh && \
-bash /data/local/tmp/k60screen_overclocker.sh || echo "网络错误或下载失败"
-                ;;
-            *)
-                echo "已取消更新"
-                ;;
-        esac
-    fi
-}
 
 
 LOG_FILE="$LOG_DIR/$(date +'%Y%m%d_%H%M%S').log"
