@@ -331,6 +331,7 @@ main_menu() {
 # 选项一：刷入预制DTBO文件
 flash_premade_dtbo() {
     clear
+    [[ "$PHONE_CODENAME" != "mondrian" ]] && print_error "非红米K60设备禁用！" && return
     local dtbo_files=($(find "$IMG_DIR" -maxdepth 3 -name "dtbo*.img"))
 
     if [ ${#dtbo_files[@]} -eq 0 ]; then
