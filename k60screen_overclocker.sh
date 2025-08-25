@@ -95,32 +95,17 @@ setup_workspace() {
 
 # 更新检查
 update_check() {
-    local tmpfile version_line notice_line
-
-    tmpfile=$(mktemp 2>/dev/null) || {
-        printf 'update_check: 无法创建临时文件，检查失败\n' >&2
-        return 1
-    }
-    trap 'rm -f "$tmpfile"' EXIT
-
-    if ! curl -fsSL "${url_online}/version" -o "$tmpfile" 2>/dev/null; then
-        printf 'update_check: 获取远端版本信息失败\n' >&2
+    local version_new=$(curl -fsSL "${url_online}/version")
+    if [[ -z $version_new ]]; then
+        print_error "获取远端版本信息失败"
         return 1
     fi
 
-    { IFS= read -r version_line; IFS= read -r notice_line; } < "$tmpfile"
-
-    [[ -z "$version_line" ]] && {
-        printf 'update_check: 远端 version 文件格式异常\n' >&2
-        return 1
-    }
-
-    if [[ "$local_version" != "$version_line" ]]; then
+    if [[ "$local_version" != "$version_new" ]]; then
         cat <<EOF
 ┌─ 版本更新提醒 ────────────────
 │ 当前版本 : $local_version
-│ 最新版本 : $version_line
-│ 公告     : ${notice_line:-无}
+│ 最新版本 : $version_new
 └────────────────────────
 EOF
 
