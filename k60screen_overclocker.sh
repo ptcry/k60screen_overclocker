@@ -135,7 +135,7 @@ chmod +x /data/local/tmp/k60screen_overclocker.sh && \
 bash /data/local/tmp/k60screen_overclocker.sh || echo "网络错误或下载失败"
                 ;;
             *)
-                echo "已取消更新"
+                clear
                 ;;
         esac
     fi
@@ -717,18 +717,17 @@ create_custom_dtbo() {
 
 # --- 脚本执行流程 ---
 check_root
-update_check
+
 setup_workspace
 
 url_online="https://raw.githubusercontent.com/ptcry/k60screen_overclocker/refs/heads/main"
-local_version="1.9"
-
-
+local_version="1.8"
 
 LOG_FILE="$LOG_DIR/$(date +'%Y%m%d_%H%M%S').log"
 touch "$LOG_FILE"
 
 clear
+update_check
 
 print_info "======================================="
 print_info "            K60 屏幕超频工具_$local_version   "
