@@ -95,35 +95,51 @@ setup_workspace() {
 
 # 更新检查
 update_check() {
-    local version_new=$(curl -fsSL "${url_online}/version")
-    if [[ -z $version_new ]]; then
+    print_info "正在检查更新…"
+    local version_new
+    version_new=$(curl -fsSL "${url_online}/version") || {
         print_error "获取远端版本信息失败"
         return 1
-    fi
+    }
 
-    if [[ "$local_version" != "$version_new" ]]; then
-        cat <<EOF
+    [[ "$local_version" == "$version_new" ]] && return   # 已是最新
+
+    cat <<EOF
 ┌─ 版本更新提醒 ────────────────
 │ 当前版本 : $local_version
 │ 最新版本 : $version_new
 └────────────────────────
 EOF
 
-        # 询问是否更新
-        read -rp "是否立即更新? [y/N]: " confirm
-        case $confirm in
-            [yY]|[yY][eE][sS])
-                echo "开始更新..."
-                curl -sSfL https://raw.githubusercontent.com/ptcry/k60screen_overclocker/main/k60screen_overclocker.sh \
-  -o /data/local/tmp/k60screen_overclocker.sh && \
-chmod +x /data/local/tmp/k60screen_overclocker.sh && \
-bash /data/local/tmp/k60screen_overclocker.sh || echo "网络错误或下载失败"
-                ;;
-            *)
-                clear
-                ;;
-        esac
-    fi
+    read -rp "是否立即更新? [y/N]: " confirm
+    case $confirm in
+        [yY]|[yY][eE][sS])
+            print_info "正在更新脚本…"
+            # 用 mktemp 生成可写的临时文件
+            local tmp
+            tmp=$(mktemp /data/local/tmp/k60_oc.XXXXXX) || {
+                print_error "无法创建临时文件，更新取消"
+                return 1
+            }
+
+            # 下载
+            if curl -fsSL "${url_online}/k60screen_overclocker.sh" -o "$tmp"; then
+                chmod +x "$tmp"
+                # 原子替换：mv 覆盖当前脚本
+                mv "$tmp" "$0"
+                print_success "脚本已更新，重新启动…"
+                # 重新执行更新后的脚本，保留所有参数
+                exec bash "$0" "$@"
+            else
+                print_error "下载失败"
+                rm -f "$tmp"
+                return 1
+            fi
+            ;;
+        *)
+            clear
+            ;;
+    esac
 }
 
 # AB判断
