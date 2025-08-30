@@ -722,7 +722,7 @@ check_root
 setup_workspace
 
 url_online="https://raw.githubusercontent.com/ptcry/k60screen_overclocker/refs/heads/main"
-local_version="1.81"
+local_version="1.8"
 
 LOG_FILE="$LOG_DIR/$(date +'%Y%m%d_%H%M%S').log"
 touch "$LOG_FILE"
