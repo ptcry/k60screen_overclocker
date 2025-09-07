@@ -93,7 +93,7 @@ setup_workspace() {
     mkdir -p "$IMG_DIR" "$TOOLS_DIR" "$EXTRACTED_DTBO_DIR" "$OUTPUT_DTBO_DIR" "$BACKUP_DIR" "$LOG_DIR"
 }
 
-# 更新检查
+# 更新检查（极速版，带失败提示）
 update_check() {
     print_info "正在检查更新…"
     local version_new
@@ -101,8 +101,7 @@ update_check() {
         print_error "获取远端版本信息失败"
         return 1
     }
-
-    [[ "$local_version" == "$version_new" ]] && return   # 已是最新
+    [[ "$local_version" == "$version_new" ]] && return 0
 
     cat <<EOF
 ┌─ 版本更新提醒 ────────────────
@@ -112,35 +111,26 @@ update_check() {
 EOF
 
     read -rp "是否立即更新? [y/N]: " confirm
-    case $confirm in
-        [yY]|[yY][eE][sS])
-            print_info "正在更新脚本…"
-            # 用 mktemp 生成可写的临时文件
-            local tmp
-            tmp=$(mktemp /data/local/tmp/k60_oc.XXXXXX) || {
-                print_error "无法创建临时文件，更新取消"
-                return 1
-            }
+    [[ $confirm =~ ^[Yy] ]] || return 0
 
-            # 下载
-            if curl -fsSL "${url_online}/k60screen_overclocker.sh" -o "$tmp"; then
-                chmod +x "$tmp"
-                # 原子替换：mv 覆盖当前脚本
-                mv "$tmp" "$0"
-                print_success "脚本已更新，重新启动…"
-                # 重新执行更新后的脚本，保留所有参数
-                exec bash "$0" "$@"
-            else
-                print_error "下载失败"
-                rm -f "$tmp"
-                return 1
-            fi
-            ;;
-        *)
-            clear
-            ;;
-    esac
+    print_info "正在更新脚本…"
+    local tmp=$(mktemp /data/local/tmp/k60_oc.XXXXXX) || {
+        print_error "创建临时文件失败，更新取消"
+        return 1
+    }
+    curl -fsSL "${url_online}/k60screen_overclocker.sh" -o "$tmp" || {
+        print_error "下载新版本失败"
+        rm -f "$tmp"
+        return 1
+    }
+    chmod +x "$tmp"
+    mkdir -p "$WORKSPACE"
+    echo "$version_new" > "$WORKSPACE/version"
+    mv "$tmp" "$0"
+    print_success "脚本已更新，立即重启…"
+    exec bash "$0" "$@"
 }
+
 
 # AB判断
 detect_ab() {
@@ -722,7 +712,7 @@ check_root
 setup_workspace
 
 url_online="https://raw.githubusercontent.com/ptcry/k60screen_overclocker/refs/heads/main"
-local_version="1.81"
+local_version=$(cat $WORKSPACE/version)
 
 LOG_FILE="$LOG_DIR/$(date +'%Y%m%d_%H%M%S').log"
 touch "$LOG_FILE"
